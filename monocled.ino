@@ -1,18 +1,17 @@
-/*
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * MonocLED
  *
  * Controls 1 NeoPixel RGBW ring to display a variety of patterns with
- * a debounced button to cycle display modes. Hold this button to turn
- * off the ring.
+ * a debounced button to cycle display modes.
  *
  * Alex Troesch (c) 2016
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
 
-#include <NeoPixelBus.h>
-#include <NeoPixelAnimator.h>
+#include <Adafruit_NeoPixel.h>
 
 // Output pin for the NeoPixel ring
-#define PIXEL_PIN 1
+#define PIXEL_PIN 0
 
 // Number of pixels in the ring
 #define PIXEL_COUNT 24
@@ -21,267 +20,351 @@
 #define BRIGHTNESS 127
 
 // Input pin for the mode cycle button
+// Must be GPIO#2 for Trinket since that is the only external interupt INT0
 #define BUTTON_PIN 2
+
+// Input pin for the random seed
+#define OPEN_PIN 4
 
 // Button timing parameters in ms
 #define DEBOUNCE_TIME 100
-#define HOLD_TIME 2000
 
 // Mode definitions
 #define MODE_OFF   0
+
 #define MODE_SWIRL 1
 #define MODE_STARS 2
-#define MODE_PULSE 3
+#define MODE_SPARK 3
 #define MODE_THUMP 4
 #define MODE_HIPPY 5
+
 #define MODE_COUNT 6
 
-// Initialize display state
-uint8_t displayMode = MODE_OFF;
+// Gamma correction curve
+const uint8_t PROGMEM gamma[] = {
+      0,  0,  0,  1,
+      1,  2,  3,  5,
+      7, 10, 13, 16,
+     20, 25, 30, 36,
+     43, 50, 59, 68,
+     78, 89,101,114,
+    127,142,158,175,
+    193,213,233,255};
 
-// Initialize button state
-// Due to internal pull-up resistors
-// LOW = pressed, HIGH = not pressed
-bool previousState = HIGH;
-bool currentState;
-long millis_held;
-unsigned long startTime;
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * NeoPatterns
+ *
+ * Derived from Adafruit example. Allows for pixel buffer to be updated in a non-blocking way.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
+
+// Pattern types supported:
+enum  pattern { NONE, RAINBOW_CYCLE, THEATER_CHASE, COLOR_WIPE, SCANNER, FADE, TWINKLE };
+
+// NeoPattern Class - derived from the Adafruit_NeoPixel class
+class NeoPatterns : public Adafruit_NeoPixel {
+    public:
+
+    // Member Variables:  
+    pattern ActivePattern;  // which pattern is running
+    
+    unsigned long Interval;   // milliseconds between updates
+    unsigned long lastUpdate; // last update of position
+    
+    uint32_t Color1, Color2;  // What colors are in use
+    uint16_t TotalSteps;  // total number of steps in the pattern
+    uint16_t Index;  // current step within the pattern
+    
+    // Constructor - calls base-class constructor to initialize strip
+    NeoPatterns(uint16_t pixels, uint8_t pin, uint8_t type)
+    :Adafruit_NeoPixel(pixels, pin, type) { }
+    
+    // Update the pattern
+    void Update() {
+        // time to update
+        if ((millis() - lastUpdate) > Interval) {
+            lastUpdate = millis();
+
+            switch(ActivePattern) {
+                case RAINBOW_CYCLE:
+                    RainbowCycleUpdate();
+                    break;
+                case THEATER_CHASE:
+                    TheaterChaseUpdate();
+                    break;
+                case COLOR_WIPE:
+                    ColorWipeUpdate();
+                    break;
+                case SCANNER:
+                    ScannerUpdate();
+                    break;
+                case FADE:
+                    FadeUpdate();
+                    break;
+                case TWINKLE:
+                    TwinkleUpdate();
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+  
+    // Increment the Index and reset at the end
+    void Increment() {
+        Index++;
+        if (Index >= TotalSteps) {
+            Index = 0;
+        }
+    }
+    
+    // Initialize for a RainbowCycle
+    void RainbowCycle(uint8_t interval) {
+        ActivePattern = RAINBOW_CYCLE;
+        Interval = interval;
+        TotalSteps = 255;
+        Index = 0;
+    }
+    
+    // Update the Rainbow Cycle Pattern
+    void RainbowCycleUpdate() {
+        for (int i = 0; i< numPixels(); i++) {
+            if (i % 2 == 0) {
+                setPixelColor(i, Wheel(((i * 256 / numPixels()) + Index) & 255));
+            } else {
+                setPixelColor(i, Color(0,0,0));
+            }
+        }
+        show();
+        Increment();
+    }
+
+    // Initialize for a Theater Chase
+    void TheaterChase(uint32_t color1, uint32_t color2, uint8_t interval) {
+        ActivePattern = THEATER_CHASE;
+        Interval = interval;
+        TotalSteps = numPixels();
+        Color1 = color1;
+        Color2 = color2;
+        Index = 0;
+   }
+    
+    // Update the Theater Chase Pattern
+    void TheaterChaseUpdate() {
+        for(int i=0; i< numPixels(); i++) {
+            if ((i + Index) % 3 == 0) {
+                setPixelColor(i, Color1);
+            } else {
+                setPixelColor(i, Color2);
+            }
+        }
+        show();
+        Increment();
+    }
+
+    // Initialize for a ColorWipe
+    void ColorWipe(uint32_t color, uint8_t interval) {
+        ActivePattern = COLOR_WIPE;
+        Interval = interval;
+        TotalSteps = numPixels();
+        Color1 = color;
+        Index = 0;
+    }
+    
+    // Update the Color Wipe Pattern
+    void ColorWipeUpdate() {
+        setPixelColor(Index, Color1);
+        show();
+        Increment();
+    }
+    
+    // Initialize for a SCANNNER
+    void Scanner(uint8_t interval) {
+        ActivePattern = SCANNER;
+        Interval = interval;
+        TotalSteps = numPixels();
+        Index = 0;
+    }
+
+    // Update the Scanner Pattern
+    void ScannerUpdate() { 
+        for (int i = 0; i < numPixels(); i++) {
+            if (i == Index) {  // Scan Pixel to the right
+                setPixelColor(i, Wheel(((i * 256 / numPixels()) + Index) & 255));
+            } else { // Fading tail
+                 setPixelColor(i, DimColor(getPixelColor(i)));
+            }
+        }
+        show();
+        Increment();
+    }
+    
+    // Initialize for a Fade
+    void Fade(uint32_t color1, uint32_t color2, uint16_t steps, uint8_t interval) {
+        ActivePattern = FADE;
+        Interval = interval;
+        TotalSteps = steps;
+        Color1 = color1;
+        Color2 = color2;
+        Index = 0;
+    }
+    
+    // Update the Fade Pattern
+    void FadeUpdate() {
+        // Calculate linear interpolation between Color1 and Color2
+        // Optimise order of operations to minimize truncation error
+        uint8_t red = ((Red(Color1) * (TotalSteps - Index)) + (Red(Color2) * Index)) / TotalSteps;
+        uint8_t green = ((Green(Color1) * (TotalSteps - Index)) + (Green(Color2) * Index)) / TotalSteps;
+        uint8_t blue = ((Blue(Color1) * (TotalSteps - Index)) + (Blue(Color2) * Index)) / TotalSteps;
+        
+        for (int i = 0; i < numPixels(); i++) {
+            if (i % 2 == 0) {
+                setPixelColor(i, Color(red, green, blue));
+            } else {
+                setPixelColor(i, Color(0,0,0));
+            }
+        }
+        show();
+        Increment();
+    }
+
+    void Twinkle(uint8_t interval) {
+        ActivePattern = TWINKLE;
+        Interval = interval;
+        Index = 0;
+        ColorSet(Color(0,0,0));
+    }
+
+    void TwinkleUpdate() {
+        uint8_t choice = random(4);
+
+        for (int i = 0; i < numPixels(); i++) {
+            if (i % 4 == choice) {
+                setPixelColor(i, 0, 0, 0, gamma[random(32)]);
+            } else if ((3*i) % 4 == choice) {
+                setPixelColor(i, 0, 0, 0, 0);
+            }
+        }
+        show();
+        Increment();
+    }
+   
+    // Calculate 50% dimmed version of a color (used by ScannerUpdate)
+    uint32_t DimColor(uint32_t color) {
+        // Shift R, G and B components one bit to the right
+        uint32_t dimColor = Color(Red(color) >> 1, Green(color) >> 1, Blue(color) >> 1);
+        return dimColor;
+    }
+
+    // Set all pixels to a color (synchronously)
+    void ColorSet(uint32_t color) {
+        for (int i = 0; i < numPixels(); i++) {
+            setPixelColor(i, color);
+        }
+        show();
+    }
+
+    // Returns the Red component of a 32-bit color
+    uint8_t Red(uint32_t color) {
+        return (color >> 16) & 0xFF;
+    }
+
+    // Returns the Green component of a 32-bit color
+    uint8_t Green(uint32_t color) {
+        return (color >> 8) & 0xFF;
+    }
+
+    // Returns the Blue component of a 32-bit color
+    uint8_t Blue(uint32_t color) {
+        return color & 0xFF;
+    }
+    
+    // Input a value 0 to 255 to get a color value.
+    // The colours are a transition r - g - b - back to r.
+    uint32_t Wheel(byte WheelPos) {
+        WheelPos = 255 - WheelPos;
+
+        if (WheelPos < 85) {
+            return Color(255 - WheelPos * 3, 0, WheelPos * 3);
+        } else if (WheelPos < 170) {
+            WheelPos -= 85;
+            return Color(0, WheelPos * 3, 255 - WheelPos * 3);
+        } else {
+            WheelPos -= 170;
+            return Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+        }
+    }
+};
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * setup, loop, and button logic
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
 
 // Create the ring
-NeoPixelBus<NeoRgbwFeature, Neo800KbpsMethod> ring(PIXEL_COUNT, PIXEL_PIN); 
+// Adafruit_NeoPixel ring(PIXEL_COUNT, PIXEL_PIN, NEO_GRBW + NEO_KHZ800);
+NeoPatterns ring(PIXEL_COUNT, PIXEL_PIN, NEO_GRBW + NEO_KHZ800);
 
-// Create animation controller with millisecond scale updates
-NeoPixelAnimator animator(1, NEO_MILLISECONDS);
+// Initialize display state
+volatile uint8_t displayMode = 1;
+
+// Initialize button debounce timer
+volatile unsigned long lastPress = 0;
+
+// Called on INT0 HIGH -> LOW, stores button state
+void buttonHandler() {
+    if (millis() - lastPress > DEBOUNCE_TIME) {
+        if (++displayMode >= MODE_COUNT) {
+            displayMode = 0;
+        }
+        switchMode(displayMode);
+    }
+
+    lastPress = millis();
+}
 
 // Initial setup, runs once upon boot
 void setup() {
-    // Set the button pin to input
+    // Set the button pin to input and fire an interupt
     pinMode(BUTTON_PIN, INPUT_PULLUP);
-    startTime = millis();
+    attachInterrupt(0, buttonHandler, FALLING);
 
-    // Initialize to off
-    displayMode = MODE_OFF;
-    ring.Begin();
-    ring.Show();
+    // Initialize to first mode
+    ring.setBrightness(BRIGHTNESS);
+    ring.begin();
+    ring.show();
+    switchMode(displayMode);
 }
 
 // Main loop, runs repeatedly
 void loop() {
-    // Read button state
-    currentState = digitalRead(BUTTON_PIN);
-
-    // Update the start time of a button press at least 200ms
-    // after the previous time of a HIGH -> LOW transition
-    if (currentState == LOW && previousState == HIGH
-            && (millis() - startTime > 2 * DEBOUNCE_TIME)) {
-        startTime = millis();
-    }
-
-    millis_held = millis() - startTime;
-
-    // Debounce, button is required to be pressed for 100ms
-    if (millis_held > DEBOUNCE_TIME && millis_held < HOLD_TIME) {
-
-        // Switch mode on button release
-        if (currentState == HIGH && previousState == LOW) {
-
-            // Increment mode
-            // Looping back to mode 1 instead of off
-            displayMode++;
-            if (displayMode >= MODE_COUNT) {
-                displayMode = 1;
-            }
-
-            // Start new animation
-            switchMode(displayMode);
-        }
-
-    // Switch ring to MODE_OFF if held for more than 2s
-    } else if (millis_held >= HOLD_TIME) {
-        displayMode = MODE_OFF;
-        switchMode(displayMode);
-    }
-
     // Update animation and display
-    animator.UpdateAnimations();
-    if (ring.IsDirty() && ring.CanShow()) {
-        ring.Show();
-    }
-
-    // Remember the current state as the previous state
-    previousState = currentState;
-}
-
-/* 
- * AnimationParam
- *
- * This struct contains three properties that provide state information to the animation callback.
- *
- * float progress - the progress from 0.0 to 1.0 of the animation to apply
- * uint16_t index - the channel index of the animation
- * AnimationState state - the animation state, which can be one of the following...
- *   AnimationState_Started - this is the first call to update, will only be set once
- *     unless the animation is restarted.
- *   AnimationState_Progress - this is one of the many calls between the first and last.
- *   AnimationState_Completed - this is the last call to update, will only be set once
- *     unless the animation is restarted.
- *
- * Easing Functions
- *
- * NeoEase::Linear
- * NeoEase::QuadraticInOut
- * NeoEase::CubicInOut
- * NeoEase::QuarticInOut
- * NeoEase::QuinticInOut
- * NeoEase::SinusoidalInOut
- * NeoEase::ExponentialInOut
- * NeoEase::CircularInOut
- *
- */
-
-/*
- * MODE_OFF
- *
- * Fades each pixel to black in order. Does not repeat.
- * 
- */
-void offUpdate(const AnimationParam& param) {
-    uint8_t endPixel = param.progress * PIXEL_COUNT;
-    RgbwColor color;
-
-    if (endPixel > PIXEL_COUNT) {
-        endPixel = PIXEL_COUNT;
-    }
-
-    for (uint8_t i = 0; i <= endPixel; i++) {
-        color = RgbwColor::LinearBlend(ring.GetPixelColor(i), RgbwColor(0,0,0,0), param.progress);
-        ring.SetPixelColor(i, color);
-    }
-}
-
-/*
- * MODE_SWIRL
- *
- * A colorful comet swirls in one direction.
- * 
- */
-struct SwirlParam {
-    uint8_t lastPixel;
-} swirlParam;
-void swirlUpdate(const AnimationParam& param) {
-    uint8_t nextPixel = param.progress * PIXEL_COUNT;
-
-    fadeAll(10);
-
-    if (nextPixel != swirlParam.lastPixel) {
-        for (uint8_t i =  swirlParam.lastPixel + 1; i <= nextPixel; i++) {
-            ring.SetPixelColor(i, RgbwColor(0, 153, 255, 0));
-        }
-    }
-
-    swirlParam.lastPixel = nextPixel;
-
-    // Restart if compeleted
-    if (param.state == AnimationState_Completed) {
-        // Adjust Parameters for next run if needed
-        swirlParam.lastPixel = 0;
-
-        animator.RestartAnimation(param.index);
-    }
-}
-
-/*
- * MODE_STARS
- * 
- */
-struct StarsParam {
-} starsParam;
-void starsUpdate(const AnimationParam& param) {
-
-    // Restart if compeleted
-    if (param.state == AnimationState_Completed) {
-        // Adjust Parameters for next run if needed
-        animator.RestartAnimation(param.index);
-    }
-}
-
-/*
- * MODE_PULSE
- *
- */
-struct PulseParam {
-} pulseParam;
-void pulseUpdate(const AnimationParam& param) {
-
-    // Restart if compeleted
-    if (param.state == AnimationState_Completed) {
-        // Adjust Parameters for next run if needed
-        animator.RestartAnimation(param.index);
-    }
-}
-
-/*
- * MODE_THUMP
- *
- */
-struct ThumpParam {
-} thumpParam;
-void thumpUpdate(const AnimationParam& param) {
-
-    // Restart if compeleted
-    if (param.state == AnimationState_Completed) {
-        // Adjust Parameters for next run if needed
-        animator.RestartAnimation(param.index);
-    }
-}
-
-/*
- * MODE_HIPPY
- *
- */
-struct HippyParam {
-} hippyParam;
-void hippyUpdate(const AnimationParam& param) {
-
-    // Restart if compeleted
-    if (param.state == AnimationState_Completed) {
-        // Adjust Parameters for next run if needed
-        animator.RestartAnimation(param.index);
-    }
-}
-
-// Fade out the whole ring
-void fadeAll(uint8_t darkenBy) {
-    RgbwColor color;
-
-    for (uint8_t i = 0; i < PIXEL_COUNT; i++) {
-        color = ring.GetPixelColor(i);
-        color.Darken(darkenBy);
-        ring.SetPixelColor(i, color);
-    }
+    ring.Update();
 }
 
 // Create animations and set parameters
 void switchMode(uint8_t mode) {
+    uint32_t randomColor1 = ring.Wheel(random(255));
+    uint32_t randomColor2 = ring.Wheel(random(255));
+
     switch (mode) {
         case MODE_OFF:
-            animator.StartAnimation(0, 2000, offUpdate);
+            ring.ColorWipe(ring.Color(0, 0, 0), 75);
             break;
         case MODE_SWIRL:
-            swirlParam.lastPixel = 0;
-            animator.StartAnimation(0, 5000, swirlUpdate);
+            ring.Scanner(65);
             break;
         case MODE_STARS:
-            animator.StartAnimation(0, 5000, starsUpdate);
+            ring.Twinkle(225);
             break;
-        case MODE_PULSE:
-            animator.StartAnimation(0, 5000, pulseUpdate);
+        case MODE_SPARK:
+            ring.TheaterChase(randomColor1, ring.Color(0,0,0), 100);
             break;
         case MODE_THUMP:
-            animator.StartAnimation(0, 5000, thumpUpdate);
+            ring.Fade(randomColor1, randomColor2, 90, 10);
             break;
         case MODE_HIPPY:
-            animator.StartAnimation(0, 5000, hippyUpdate);
+            ring.RainbowCycle(3);
             break;
     }
 }
