@@ -17,14 +17,11 @@
 #define PIXEL_COUNT 24
 
 // Pixel brightness, 0-255
-#define BRIGHTNESS 127
+#define BRIGHTNESS 63
 
 // Input pin for the mode cycle button
 // Must be GPIO#2 for Trinket since that is the only external interupt INT0
 #define BUTTON_PIN 2
-
-// Input pin for the random seed
-#define OPEN_PIN 4
 
 // Button timing parameters in ms
 #define DEBOUNCE_TIME 100
@@ -40,7 +37,7 @@
 
 #define MODE_COUNT 6
 
-// Gamma correction curve
+// Gamma correction curve, compressed to 32 values
 const uint8_t PROGMEM gamma[] = {
       0,  0,  0,  1,
       1,  2,  3,  5,
@@ -107,6 +104,9 @@ class NeoPatterns : public Adafruit_NeoPixel {
                 default:
                     break;
             }
+            
+            show();
+            Increment();
         }
     }
   
@@ -135,8 +135,6 @@ class NeoPatterns : public Adafruit_NeoPixel {
                 setPixelColor(i, Color(0,0,0));
             }
         }
-        show();
-        Increment();
     }
 
     // Initialize for a Theater Chase
@@ -158,8 +156,6 @@ class NeoPatterns : public Adafruit_NeoPixel {
                 setPixelColor(i, Color2);
             }
         }
-        show();
-        Increment();
     }
 
     // Initialize for a ColorWipe
@@ -174,8 +170,6 @@ class NeoPatterns : public Adafruit_NeoPixel {
     // Update the Color Wipe Pattern
     void ColorWipeUpdate() {
         setPixelColor(Index, Color1);
-        show();
-        Increment();
     }
     
     // Initialize for a SCANNNER
@@ -195,8 +189,6 @@ class NeoPatterns : public Adafruit_NeoPixel {
                  setPixelColor(i, DimColor(getPixelColor(i)));
             }
         }
-        show();
-        Increment();
     }
     
     // Initialize for a Fade
@@ -224,8 +216,6 @@ class NeoPatterns : public Adafruit_NeoPixel {
                 setPixelColor(i, Color(0,0,0));
             }
         }
-        show();
-        Increment();
     }
 
     void Twinkle(uint8_t interval) {
@@ -245,8 +235,6 @@ class NeoPatterns : public Adafruit_NeoPixel {
                 setPixelColor(i, 0, 0, 0, 0);
             }
         }
-        show();
-        Increment();
     }
    
     // Calculate 50% dimmed version of a color (used by ScannerUpdate)
