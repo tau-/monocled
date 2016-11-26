@@ -17,7 +17,8 @@
 #define PIXEL_COUNT 24
 
 // Pixel brightness, 0-255
-#define BRIGHTNESS 63
+#define BRIGHTNESS_LOW 8
+#define BRIGHTNESS_HIGH 64
 
 // Input pin for the mode cycle button
 // Must be GPIO#2 for Trinket since that is the only external interupt INT0
@@ -30,23 +31,12 @@
 #define MODE_OFF   0
 
 #define MODE_SWIRL 1
-#define MODE_STARS 2
+#define MODE_SLIDE 2
 #define MODE_SPARK 3
 #define MODE_THUMP 4
 #define MODE_HIPPY 5
 
 #define MODE_COUNT 6
-
-// Gamma correction curve, compressed to 32 values
-const uint8_t PROGMEM gamma[] = {
-      0,  0,  0,  1,
-      1,  2,  3,  5,
-      7, 10, 13, 16,
-     20, 25, 30, 36,
-     43, 50, 59, 68,
-     78, 89,101,114,
-    127,142,158,175,
-    193,213,233,255};
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * NeoPatterns
@@ -56,7 +46,7 @@ const uint8_t PROGMEM gamma[] = {
  */
 
 // Pattern types supported:
-enum  pattern { NONE, RAINBOW_CYCLE, THEATER_CHASE, COLOR_WIPE, SCANNER, FADE, TWINKLE };
+enum  pattern { NONE, RAINBOW_CYCLE, THEATER_CHASE, COLOR_WIPE, SCANNER, FADE, SLIDE };
 
 // NeoPattern Class - derived from the Adafruit_NeoPixel class
 class NeoPatterns : public Adafruit_NeoPixel {
@@ -98,8 +88,8 @@ class NeoPatterns : public Adafruit_NeoPixel {
                 case FADE:
                     FadeUpdate();
                     break;
-                case TWINKLE:
-                    TwinkleUpdate();
+                case SLIDE:
+                    SlideUpdate();
                     break;
                 default:
                     break;
@@ -129,11 +119,7 @@ class NeoPatterns : public Adafruit_NeoPixel {
     // Update the Rainbow Cycle Pattern
     void RainbowCycleUpdate() {
         for (int i = 0; i< numPixels(); i++) {
-            if (i % 2 == 0) {
-                setPixelColor(i, Wheel(((i * 256 / numPixels()) + Index) & 255));
-            } else {
-                setPixelColor(i, Color(0,0,0));
-            }
+            setPixelColor(i, Wheel(((i * 256 / numPixels()) + Index) & 255));
         }
     }
 
@@ -186,7 +172,30 @@ class NeoPatterns : public Adafruit_NeoPixel {
             if (i == Index) {  // Scan Pixel to the right
                 setPixelColor(i, Wheel(((i * 256 / numPixels()) + Index) & 255));
             } else { // Fading tail
-                 setPixelColor(i, DimColor(getPixelColor(i)));
+                setPixelColor(i, DimColor(getPixelColor(i)));
+            }
+        }
+    }
+
+    // Initialize for a SLIDE
+    void Slide(uint8_t interval) {
+        ActivePattern = SLIDE;
+        Interval = interval;
+        TotalSteps = 3 * PIXEL_COUNT;
+        // Color1 = color;
+        Index = 0;
+    }
+
+    // Update the Scanner Pattern
+    void SlideUpdate() {
+        uint32_t color = Wheel((Index * 256 / (3 * PIXEL_COUNT)) & 255);
+        for (int i = 0; i < PIXEL_COUNT; i++) {
+            if (i == Index % PIXEL_COUNT) {
+                setPixelColor(i, color);
+            } else if (i == (3 * PIXEL_COUNT - Index) % PIXEL_COUNT) {
+                setPixelColor(i, color);
+            } else {
+                setPixelColor(i, Color(0,0,0));
             }
         }
     }
@@ -210,30 +219,7 @@ class NeoPatterns : public Adafruit_NeoPixel {
         uint8_t blue = ((Blue(Color1) * (TotalSteps - Index)) + (Blue(Color2) * Index)) / TotalSteps;
         
         for (int i = 0; i < numPixels(); i++) {
-            if (i % 2 == 0) {
-                setPixelColor(i, Color(red, green, blue));
-            } else {
-                setPixelColor(i, Color(0,0,0));
-            }
-        }
-    }
-
-    void Twinkle(uint8_t interval) {
-        ActivePattern = TWINKLE;
-        Interval = interval;
-        Index = 0;
-        ColorSet(Color(0,0,0));
-    }
-
-    void TwinkleUpdate() {
-        uint8_t choice = random(4);
-
-        for (int i = 0; i < numPixels(); i++) {
-            if (i % 4 == choice) {
-                setPixelColor(i, 0, 0, 0, gamma[random(32)]);
-            } else if ((3*i) % 4 == choice) {
-                setPixelColor(i, 0, 0, 0, 0);
-            }
+            setPixelColor(i, Color(red, green, blue));
         }
     }
    
@@ -318,7 +304,7 @@ void setup() {
     attachInterrupt(0, buttonHandler, FALLING);
 
     // Initialize to first mode
-    ring.setBrightness(BRIGHTNESS);
+    ring.setBrightness(BRIGHTNESS_LOW);
     ring.begin();
     ring.show();
     switchMode(displayMode);
@@ -332,20 +318,23 @@ void loop() {
 
 // Create animations and set parameters
 void switchMode(uint8_t mode) {
-    uint32_t randomColor1 = ring.Wheel(random(255));
-    uint32_t randomColor2 = ring.Wheel(random(255));
+    byte color = random(255);
+    uint32_t randomColor1 = ring.Wheel(color);
+    uint32_t randomColor2 = ring.Wheel((color + 127) % 255);
 
     switch (mode) {
         case MODE_OFF:
             ring.ColorWipe(ring.Color(0, 0, 0), 75);
             break;
         case MODE_SWIRL:
+            ring.setBrightness(BRIGHTNESS_HIGH);
             ring.Scanner(65);
             break;
-        case MODE_STARS:
-            ring.Twinkle(225);
+        case MODE_SLIDE:
+            ring.Slide(65);
             break;
         case MODE_SPARK:
+            ring.setBrightness(BRIGHTNESS_LOW);
             ring.TheaterChase(randomColor1, ring.Color(0,0,0), 100);
             break;
         case MODE_THUMP:
