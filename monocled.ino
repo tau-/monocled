@@ -319,7 +319,7 @@ void loop() {
 void switchMode(uint8_t mode) {
     byte color = random(255);
     uint32_t randomColor1 = ring.Wheel(color);
-    uint32_t randomColor2 = ring.Wheel((color + 127) % 255);
+    uint32_t randomColor2 = ring.Wheel((color + 128) % 256);
 
     switch (mode) {
         case MODE_OFF:
