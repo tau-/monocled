@@ -52,7 +52,7 @@ enum  pattern { NONE, RAINBOW_CYCLE, THEATER_CHASE, COLOR_WIPE, SCANNER, FADE, S
 class NeoPatterns : public Adafruit_NeoPixel {
     public:
 
-    // Member Variables:  
+    // Member Variables  
     pattern ActivePattern;  // which pattern is running
     
     unsigned long Interval;   // milliseconds between updates
@@ -66,8 +66,8 @@ class NeoPatterns : public Adafruit_NeoPixel {
     NeoPatterns(uint16_t pixels, uint8_t pin, uint8_t type)
     :Adafruit_NeoPixel(pixels, pin, type) { }
     
-    // Update the pattern
-    void Update() {
+    // Run the pattern - Update, show, increment
+    void Run() {
         // time to update
         if ((millis() - lastUpdate) > Interval) {
             lastUpdate = millis();
@@ -95,6 +95,8 @@ class NeoPatterns : public Adafruit_NeoPixel {
                     break;
             }
             
+            // Inherited from Adafruit_NeoPixel
+            // Pushes pixel data on the bus to the ring
             show();
             Increment();
         }
@@ -102,10 +104,7 @@ class NeoPatterns : public Adafruit_NeoPixel {
   
     // Increment the Index and reset at the end
     void Increment() {
-        Index++;
-        if (Index >= TotalSteps) {
-            Index = 0;
-        }
+        Index = ++Index % TotalSteps
     }
     
     // Initialize for a RainbowCycle
@@ -221,13 +220,6 @@ class NeoPatterns : public Adafruit_NeoPixel {
             setPixelColor(i, Color(red, green, blue));
         }
     }
-   
-    // Calculate 50% dimmed version of a color (used by ScannerUpdate)
-    uint32_t DimColor(uint32_t color) {
-        // Shift R, G and B components one bit to the right
-        uint32_t dimColor = Color(Red(color) >> 1, Green(color) >> 1, Blue(color) >> 1);
-        return dimColor;
-    }
 
     // Set all pixels to a color (synchronously)
     void ColorSet(uint32_t color) {
@@ -235,6 +227,13 @@ class NeoPatterns : public Adafruit_NeoPixel {
             setPixelColor(i, color);
         }
         show();
+    }
+
+    // Calculate 50% dimmed version of a color
+    uint32_t DimColor(uint32_t color) {
+        // Shift R, G and B components one bit to the right
+        uint32_t dimColor = Color(Red(color) >> 1, Green(color) >> 1, Blue(color) >> 1);
+        return dimColor;
     }
 
     // Returns the Red component of a 32-bit color
@@ -287,9 +286,7 @@ volatile unsigned long lastPress = 0;
 // Called on INT0 HIGH -> LOW, stores button state
 void buttonHandler() {
     if (millis() - lastPress > DEBOUNCE_TIME) {
-        if (++displayMode >= MODE_COUNT) {
-            displayMode = 0;
-        }
+        displayMode = ++displayMode % MODE_COUNT
         switchMode(displayMode);
     }
 
@@ -312,7 +309,7 @@ void setup() {
 // Main loop, runs repeatedly
 void loop() {
     // Update animation and display
-    ring.Update();
+    ring.Run();
 }
 
 // Create animations and set parameters
