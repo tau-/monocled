@@ -17,8 +17,8 @@
 #define PIXEL_COUNT 24
 
 // Pixel brightness, 0-255
-#define BRIGHTNESS_LOW 8
-#define BRIGHTNESS_HIGH 64
+#define BRIGHTNESS_LOW 4
+#define BRIGHTNESS_HIGH 32
 
 // Input pin for the mode cycle button
 // Must be GPIO#2 for Trinket since that is the only external interupt INT0
