@@ -7,7 +7,7 @@ non-blocking way with a debounced button to cycle display modes. It serves a
 general purpose but it was initially created to drive an LED Monocle with 1
 NeoPixel RGBW ring.
 
-![Image of the complete LED Monocle](images/monocle.png "LED Monocle")
+![Image of the complete LED Monocle](images/monocle.jpg "LED Monocle")
 
 There are currently 4 modes to pick from: Comet, Bounce, Hippy, and Melt.
 
