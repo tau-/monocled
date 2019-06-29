@@ -43,12 +43,12 @@ affliate links, just for your convenience.
 
 ### Build
 
-Using the above parts and the provide ciruit diagram below I would suggest
+Using the above parts and the provided ciruit diagram below I would suggest
 following this build order. Note that the Trinket and NeoPixel ring should be on
 the same side of the monocle with the Lipo battery on the other in order to have
 an even distribution of weight.
 
-Note this build is very similar to the [NeoPixel LED Goggles](https://learn.adafruit.com/kaleidoscope-eyes-neopixel-led-goggles-trinket-gemma)
+Note that this build is very similar to the [NeoPixel LED Goggles](https://learn.adafruit.com/kaleidoscope-eyes-neopixel-led-goggles-trinket-gemma)
 project on the Adafruit site if you are looking for more details.
 
 1. Solder the lead wires to the Trinket.
@@ -60,9 +60,10 @@ battery.
 
 2. Wrap the battery and Trinkey in electrical tape.
 
-   This is just to prevent a mess and no apply epoxy directly to the components.
+   This is just to prevent a mess and to avoid applying epoxy directly to the
+components.
 
-3. Prepare the button by pulling apart the leads until in snuggly fits on the
+3. Prepare the button by pulling apart the leads until it snuggly fits on the
 arm of the glasses.
 
 4. Connect the button to pin #2 and GND with the correct length of wire.
@@ -87,9 +88,9 @@ the ring again +BAT to 5V and GND to GND, also connect pin #0 to Data Input.
 
 10. Flush cut any exposed leads and secure loose wires in place.
 
-11. Connect the Trinket and upload the included monocled.ino project.
+11. Connect the Trinket via USB and upload the included monocled.ino project.
 
-12. Disconnect the USB. Then connect the JST-PH connector which acts as the main
+12. Disconnect the USB then connect the JST-PH connector which acts as the main
 power control and enjoy!
 
 
@@ -110,15 +111,15 @@ power control and enjoy!
 
 ```
 
-Note, to charge simply connect the USB LiIon/LiPoly charger to a 5V USB charger
+To charge simply connect the USB LiPoly charger to a 5V USB charger
 and connect the battery's JST-PH connector. The battery life is about 8-10 hours
 depending on the mode used.
 
 ## Next Steps
 
-Now that you hopefully have a working LED Monocle of your own you can dive into
-the provide Arduino compatible C code and create your own modes! There is
-documentation provided in [monocled.ino](monocled.ino).
+Now that you have a working LED Monocle of your own you can dive into
+the provided Arduino compatible C code and create your own modes! There is
+documentation provided to accomplish this in [monocled.ino](monocled.ino).
 
 GNU Public License v3.0
 Alex Troesch (c) 2016
