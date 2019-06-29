@@ -21,9 +21,6 @@ This project is a great introduction to microcontrollers and self contained
 wearable technology. It has a low cost and uses only simple tools, if you can
 handle through-hole soldering and epoxy then you can build this!
 
-
-Everything except for the glasses is on Adafruit, I just happened to get the jst-ph cable from Amazon since Adafruit was out of stock at the time.
-
 ### Tools
 + Soldering Iron and workstation
 + Solder
